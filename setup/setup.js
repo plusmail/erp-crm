@@ -11,7 +11,7 @@ async function createAdmin() {
     const passwordHash = newAdmin.generateHash('admin123');
 
     await new Admin({
-      email: 'admin@demo.com',
+      email: 'plus4957@gmail.com',
       password: passwordHash,
       name: 'Salah Eddine',
       surname: 'Lalami',
