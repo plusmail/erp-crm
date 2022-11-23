@@ -64,11 +64,11 @@ export default function Navigation() {
           </Menu.Item>
           <Menu.Item key={'Customer'} icon={<CustomerServiceOutlined />}>
             <Link to={'/customer'} />
-            Customer
+            고객관리
           </Menu.Item>
           <Menu.Item key={'Invoice'} icon={<FileTextOutlined />}>
             <Link to={'/invoice'} />
-            Invoice
+            송장관리
           </Menu.Item>
           <Menu.Item key={'Quote'} icon={<FileSyncOutlined />}>
             <Link to={'/quote'} />
