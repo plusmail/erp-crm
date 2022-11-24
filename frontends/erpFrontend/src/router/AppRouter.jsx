@@ -33,6 +33,8 @@ export default function AppRouter() {
       <AnimatePresence exitBeforeEnter initial={false}>
         <Switch location={location} key={location.pathname}>
           {routesConfig.map((routeItem) => {
+            //exact 경로의 정확한 매칭 예) /users 와 /users/:id 가 있을 경우 exact를 사용하면 /users로 명확하게 지정
+
             return (
               <PrivateRoute
                 key={routeItem.component}

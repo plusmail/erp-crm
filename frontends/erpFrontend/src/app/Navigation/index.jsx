@@ -39,6 +39,8 @@ export default function Navigation() {
     }, 200);
     return () => clearTimeout(timer);
   }, [isNavMenuClose]);
+
+
   const onCollapse = () => {
     navMenu.collapse();
   };

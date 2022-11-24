@@ -7,6 +7,7 @@ const AppContext = createContext();
 function AppContextProvider({ children }) {
   const [state, dispatch] = useReducer(contextReducer, initialState);
   const value = useMemo(() => [state, dispatch], [state]);
+  console.log("AppCon10->", children);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

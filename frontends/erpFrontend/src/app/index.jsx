@@ -11,6 +11,7 @@ import Navigation from '@/app/Navigation';
 import { useSelector } from 'react-redux';
 import { selectAuth } from '@/redux/auth/selectors';
 import HeaderContent from '@/app/HeaderContent';
+import {AppContextProvider} from "@/context/appContext";
 // import { useNetworkState } from "react-use";
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
   //     description: "Cannot connect to the server, Check your internet network",
   //   });
   // }
+    console.log("22222222->",this);
 
   const { isLoggedIn } = useSelector(selectAuth);
 

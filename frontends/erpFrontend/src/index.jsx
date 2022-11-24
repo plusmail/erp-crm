@@ -12,6 +12,7 @@ import store from '@/redux/store';
 
 import { AppContextProvider } from '@/context/appContext';
 
+
 ReactDOM.render(
   <RouterHistory history={history}>
     <Provider store={store}>

@@ -23,6 +23,7 @@ const paymentInvoiceController = require('@/controllers/erpControllers/paymentIn
 
 const settingCommercialController = require('@/controllers/erpControllers/settingCommercialController');
 const settingGlobalController = require('@/controllers/erpControllers/settingGlobalController');
+const mongoose = require("mongoose");
 
 // //_______________________________ Admin management_______________________________
 
@@ -38,14 +39,370 @@ const adminPhotoUpload = multer({ storage: adminPhotoStorage });
 
 router
   .route('/admin/create')
-  .post([adminPhotoUpload.single('photo'), setFilePathToBody], catchErrors(adminController.create));
-router.route('/admin/read/:id').get(catchErrors(adminController.read));
-// router.route("/admin/update/:id").patch(catchErrors(adminController.update));
-// router.route("/admin/delete/:id").delete(catchErrors(adminController.delete));
-router.route('/admin/search').get(catchErrors(adminController.search));
-router.route('/admin/list').get(catchErrors(adminController.list));
-router.route('/admin/profile').get(catchErrors(adminController.profile));
-router.route('/admin/status/:id').patch(catchErrors(adminController.status));
+  .post([adminPhotoUpload.single('photo'), setFilePathToBody], catchErrors(async (req, res) => {
+    try {
+      let { email, password } = req.body;
+      if (!email || !password)
+        return res.status(400).json({
+          success: false,
+          result: null,
+          message: "Email or password fields they don't have been entered.",
+        });
+
+      const existingAdmin = await Admin.findOne({ email: email });
+
+      if (existingAdmin)
+        return res.status(400).json({
+          success: false,
+          result: null,
+          message: 'An account with this email already exists.',
+        });
+
+      if (password.length < 8)
+        return res.status(400).json({
+          success: false,
+          result: null,
+          message: 'The password needs to be at least 8 characters long.',
+        });
+
+      var newAdmin = new Admin();
+      const passwordHash = newAdmin.generateHash(password);
+      req.body.password = passwordHash;
+
+      const result = await new Admin(req.body).save();
+      if (!result) {
+        return res.status(403).json({
+          success: false,
+          result: null,
+          message: "document couldn't save correctly",
+        });
+      }
+      return res.status(200).send({
+        success: true,
+        result: {
+          _id: result._id,
+          enabled: result.enabled,
+          email: result.email,
+          name: result.name,
+          surname: result.surname,
+          photo: result.photo,
+          role: result.role,
+          employee: result.employee,
+        },
+        message: 'Admin document save correctly',
+      });
+    } catch {
+      return res.status(500).json({ success: false, message: 'there is error' });
+    }
+  }));
+router.route('/admin/read/:id').get(catchErrors(async (req, res) => {
+  try {
+    // Find document by id
+    const tmpResult = await Admin.findOne({
+      _id: req.params.id,
+      removed: false,
+    });
+    // If no results found, return document not found
+    if (!tmpResult) {
+      return res.status(404).json({
+        success: false,
+        result: null,
+        message: 'No document found by this id: ' + req.params.id,
+      });
+    } else {
+      // Return success resposne
+      let result = {
+        _id: tmpResult._id,
+        enabled: tmpResult.enabled,
+        email: tmpResult.email,
+        name: tmpResult.name,
+        surname: tmpResult.surname,
+        photo: tmpResult.photo,
+        role: tmpResult.role,
+        employee: tmpResult.employee,
+      };
+
+      return res.status(200).json({
+        success: true,
+        result,
+        message: 'we found this document by this id: ' + req.params.id,
+      });
+    }
+  } catch {
+    // Server Error
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+    });
+  }
+}));
+router.route("/admin/update/:id").patch(catchErrors(async (req, res) => {
+  try {
+    let { email } = req.body;
+
+    if (email) {
+      const existingAdmin = await Admin.findOne({ email: email });
+
+      if (existingAdmin._id != req.params.id)
+        return res.status(400).json({ message: 'An account with this email already exists.' });
+    }
+    let updates = {
+      role: req.body.role,
+      email: req.body.email,
+      employee: req.body.employee,
+      name: req.body.name,
+      surname: req.body.surname,
+    };
+
+    // Find document by id and updates with the required fields
+    const result = await Admin.findOneAndUpdate(
+        { _id: req.params.id, removed: false },
+        { $set: updates },
+        {
+          new: true, // return the new result instead of the old one
+        }
+    ).exec();
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        result: null,
+        message: 'No document found by this id: ' + req.params.id,
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      result: {
+        _id: result._id,
+        enabled: result.enabled,
+        email: result.email,
+        name: result.name,
+        surname: result.surname,
+        photo: result.photo,
+        role: result.role,
+        employee: result.employee,
+      },
+      message: 'we update this document by this id: ' + req.params.id,
+    });
+  } catch {
+    // Server Error
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+    });
+  }
+}));
+router.route("/admin/delete/:id").delete(catchErrors(async (req, res) => {
+  try {
+    let updates = {
+      removed: true,
+    };
+    // Find the document by id and delete it
+    const result = await Admin.findOneAndUpdate(
+        { _id: req.params.id, removed: false },
+        { $set: updates },
+        {
+          new: true, // return the new result instead of the old one
+        }
+    ).exec();
+    // If no results found, return document not found
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        result: null,
+        message: 'No document found by this id: ' + req.params.id,
+      });
+    } else {
+      return res.status(200).json({
+        success: true,
+        result,
+        message: 'Successfully Deleted the document by id: ' + req.params.id,
+      });
+    }
+  } catch {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+    });
+  }
+}));
+router.route('/admin/search').get(catchErrors(async (req, res) => {
+  // console.log(req.query.fields)
+
+  // console.log(fields)
+  try {
+    if (req.query.q === undefined || req.query.q === '' || req.query.q === ' ') {
+      return res
+          .status(202)
+          .json({
+            success: false,
+            result: [],
+            message: 'No document found by this request',
+          })
+          .end();
+    }
+
+    const fieldsArray = req.query.fields
+        ? req.query.fields.split(',')
+        : ['name', 'surname', 'email'];
+
+    const fields = { $or: [] };
+
+    for (const field of fieldsArray) {
+      fields.$or.push({ [field]: { $regex: new RegExp(req.query.q, 'i') } });
+    }
+    let result = await Admin.find(fields).where('removed', false).sort({ name: 'asc' }).limit(10);
+
+    if (result.length >= 1) {
+      return res.status(200).json({
+        success: true,
+        result,
+        message: 'Successfully found all documents',
+      });
+    } else {
+      return res.status(202).json({
+        success: false,
+        result: [],
+        message: 'No document found by this request',
+      });
+    }
+  } catch {
+    return res.status(500).json({
+      success: false,
+      result: [],
+      message: 'Oops there is an Error',
+    });
+  }
+}));
+router.route('/admin/list').get(catchErrors(async (req, res) => {
+  const page = req.query.page || 1;
+  const limit = parseInt(req.query.items) || 10;
+  const skip = page * limit - limit;
+  try {
+    //  Query the database for a list of all results
+    const resultsPromise = Admin.find({ removed: false })
+        .skip(skip)
+        .limit(limit)
+        .sort({ created: 'desc' })
+        .populate();
+    // Counting the total documents
+    const countPromise = Admin.count({ removed: false });
+    // Resolving both promises
+    const [result, count] = await Promise.all([resultsPromise, countPromise]);
+    // Calculating total pages
+    const pages = Math.ceil(count / limit);
+
+    // Getting Pagination Object
+    const pagination = { page, pages, count };
+    if (count > 0) {
+      for (let admin of result) {
+        admin.password = undefined;
+        admin.customMenu = undefined;
+        admin.permissions = undefined;
+      }
+      return res.status(200).json({
+        success: true,
+        result,
+        pagination,
+        message: 'Successfully found all documents',
+      });
+    } else {
+      return res.status(203).json({
+        success: false,
+        result: [],
+        pagination,
+        message: 'Collection is Empty',
+      });
+    }
+  } catch {
+    return res.status(500).json({ success: false, result: [], message: 'Oops there is an Error' });
+  }
+}));
+router.route('/admin/profile').get(catchErrors(async (req, res) => {
+  try {
+    //  Query the database for a list of all results
+    if (!req.admin) {
+      return res.status(404).json({
+        success: false,
+        result: null,
+        message: "couldn't found  admin Profile ",
+      });
+    }
+    let result = {
+      _id: req.admin._id,
+      enabled: req.admin.enabled,
+      email: req.admin.email,
+      name: req.admin.name,
+      surname: req.admin.surname,
+      photo: req.admin.photo,
+
+      role: req.admin.role,
+
+      employee: req.admin.employee,
+    };
+
+    return res.status(200).json({
+      success: true,
+      result,
+      message: 'Successfully found Profile',
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+    });
+  }
+}));
+router.route('/admin/status/:id').patch(catchErrors(async (req, res) => {
+  try {
+    if (req.query.enabled === true || req.query.enabled === false) {
+      let updates = {
+        enabled: req.query.enabled,
+      };
+      // Find the document by id and delete it
+      const result = await Admin.findOneAndUpdate(
+          { _id: req.params.id, removed: false },
+          { $set: updates },
+          {
+            new: true, // return the new result instead of the old one
+          }
+      ).exec();
+      // If no results found, return document not found
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          result: null,
+          message: 'No document found by this id: ' + req.params.id,
+        });
+      } else {
+        return res.status(200).json({
+          success: true,
+          result,
+          message: 'Successfully update status of this document by id: ' + req.params.id,
+        });
+      }
+    } else {
+      return res
+          .status(202)
+          .json({
+            success: false,
+            result: [],
+            message: "couldn't change admin status by this request",
+          })
+          .end();
+    }
+  } catch {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+    });
+  }
+}));
 // router
 //   .route("/admin/photo")
 //   .post(
@@ -58,7 +415,38 @@ router.route('/admin/status/:id').patch(catchErrors(adminController.status));
 
 // //____________________________ Role management_______________________________
 
-router.route('/role/create').post(catchErrors(roleController.create));
+router.route('/role/create').post(catchErrors(async (Model, req, res) => {
+  try {
+    // Creating a new document in the collection
+
+    const result = await new Model(req.body).save();
+    console.log(result);
+    // Returning successfull response
+    return res.status(200).json({
+      success: true,
+      result,
+      message: 'Successfully Created the document in Model ',
+    });
+  } catch (err) {
+    // If err is thrown by Mongoose due to required validations
+    if (err.name == 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Required fields are not supplied',
+        error: err,
+      });
+    } else {
+      // Server Error
+      return res.status(500).json({
+        success: false,
+        result: null,
+        message: 'Oops there is an Error',
+        error: err,
+      });
+    }
+  }
+}));
 router.route('/role/read/:id').get(catchErrors(roleController.read));
 router.route('/role/update/:id').patch(catchErrors(roleController.update));
 router.route('/role/delete/:id').delete(catchErrors(roleController.delete));
@@ -167,13 +555,434 @@ router.route('/expenseCategory/filter').get(catchErrors(expenseCategoryControlle
 
 // //_____________________________________________ API for client payments_________________
 
-router.route('/paymentInvoice/create').post(catchErrors(paymentInvoiceController.create));
-router.route('/paymentInvoice/read/:id').get(catchErrors(paymentInvoiceController.read));
-router.route('/paymentInvoice/update/:id').patch(catchErrors(paymentInvoiceController.update));
-router.route('/paymentInvoice/delete/:id').delete(catchErrors(paymentInvoiceController.delete));
-router.route('/paymentInvoice/search').get(catchErrors(paymentInvoiceController.search));
-router.route('/paymentInvoice/list').get(catchErrors(paymentInvoiceController.list));
-router.route('/paymentInvoice/filter').get(catchErrors(paymentInvoiceController.filter));
+router.route('/paymentInvoice/create').post(catchErrors(async (req, res) => {
+  try {
+    // Creating a new document in the collection
+    if (req.body.amount === 0) {
+      return res.status(202).json({
+        success: false,
+        result: null,
+        message: `The Minimum Amount couldn't be 0`,
+      });
+    }
+
+    const currentInvoice = await Invoice.findOne({
+      _id: req.body.invoice,
+      removed: false,
+    });
+
+    const {
+      total: previousTotal,
+      discount: previousDiscount,
+      credit: previousCredit,
+    } = currentInvoice;
+
+    const maxAmount = previousTotal - previousDiscount - previousCredit;
+
+    if (req.body.amount > maxAmount) {
+      return res.status(202).json({
+        success: false,
+        result: null,
+        message: `The Max Amount you can add is ${maxAmount}`,
+      });
+    }
+
+    const result = await Model.create(req.body);
+
+    const fileId = 'payment-invoice-report-' + result._id + '.pdf';
+    const updatePath = Model.findOneAndUpdate(
+        { _id: result._id.toString(), removed: false },
+        { pdfPath: fileId },
+        {
+          new: true,
+        }
+    ).exec();
+    // Returning successfull response
+
+    const { _id: paymentInvoiceId, amount } = result;
+    const { id: invoiceId, total, discount, credit } = result.invoice;
+    console.log(
+        '🚀 ~ file: paymentInvoiceController.js ~ line 63 ~ methods.create= ~ total',
+        total
+    );
+
+    let paymentStatus =
+        total - discount === credit + amount ? 'paid' : credit + amount > 0 ? 'partially' : 'unpaid';
+
+    const invoiceUpdate = Invoice.findOneAndUpdate(
+        { _id: req.body.invoice },
+        {
+          $push: { paymentInvoice: paymentInvoiceId },
+          $inc: { credit: amount },
+          $set: { paymentStatus: paymentStatus },
+        },
+        {
+          new: true, // return the new result instead of the old one
+          runValidators: true,
+        }
+    ).exec();
+
+    // custom.generatePdf(
+    //   "PaymentInvoice",
+    //   { filename: "payment-invoice-report", format: "A5" },
+    //   result
+    // );
+
+    const [updatedResult, invoiceUpdated] = await Promise.all([updatePath, invoiceUpdate]);
+    res.status(200).json({
+      success: true,
+      result: updatedResult,
+      message: 'Successfully Created the document in Model ',
+    });
+  } catch (err) {
+    // If err is thrown by Mongoose due to required validations
+    if (err.name == 'ValidationError') {
+      res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Required fields are not supplied',
+        error: err,
+      });
+    } else {
+      // Server Error
+      res.status(500).json({
+        success: false,
+        result: null,
+        message: 'Oops there is an Error',
+        error: err,
+      });
+    }
+  }
+}));
+router.route('/paymentInvoice/read/:id').get(catchErrors(async (Model, req, res) => {
+  try {
+    // Find document by id
+    const result = await Model.findOne({ _id: req.params.id, removed: false });
+    // If no results found, return document not found
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        result: null,
+        message: 'No document found by this id: ' + req.params.id,
+      });
+    } else {
+      // Return success resposne
+      return res.status(200).json({
+        success: true,
+        result,
+        message: 'we found this document by this id: ' + req.params.id,
+      });
+    }
+  } catch (err) {
+    // Server Error
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
+router.route('/paymentInvoice/update/:id').patch(catchErrors(async (req, res) => {
+  try {
+    if (req.body.amount === 0) {
+      return res.status(202).json({
+        success: false,
+        result: null,
+        message: `The Minimum Amount couldn't be 0`,
+      });
+    }
+    // Find document by id and updates with the required fields
+    const previousPayment = await Model.findOne({
+      _id: req.params.id,
+      removed: false,
+    });
+
+    const { amount: previousAmount } = previousPayment;
+    const { id: invoiceId, total, discount, credit: previousCredit } = previousPayment.invoice;
+
+    const { amount: currentAmount } = req.body;
+
+    const changedAmount = currentAmount - previousAmount;
+    const maxAmount = total - discount - previousCredit;
+
+    if (changedAmount > maxAmount) {
+      return res.status(202).json({
+        success: false,
+        result: null,
+        message: `The Max Amount you can add is ${maxAmount + previousAmount}`,
+        error: `The Max Amount you can add is ${maxAmount + previousAmount}`,
+      });
+    }
+
+    let paymentStatus =
+        total - discount === previousCredit + changedAmount
+            ? 'paid'
+            : previousCredit + changedAmount > 0
+                ? 'partially'
+                : 'unpaid';
+
+    const updatedDate = new Date();
+    const updates = {
+      number: req.body.number,
+      date: req.body.date,
+      amount: req.body.amount,
+      paymentMode: req.body.paymentMode,
+      ref: req.body.ref,
+      description: req.body.description,
+      updated: updatedDate,
+    };
+
+    const result = await Model.findOneAndUpdate(
+        { _id: req.params.id, removed: false },
+        { $set: updates },
+        {
+          new: true, // return the new result instead of the old one
+        }
+    ).exec();
+
+    const updateInvoice = await Invoice.findOneAndUpdate(
+        { _id: req.body.invoice },
+        {
+          $inc: { credit: changedAmount },
+          $set: {
+            paymentStatus: paymentStatus,
+          },
+        },
+        {
+          new: true, // return the new result instead of the old one
+        }
+    ).exec();
+
+    // custom.generatePdf(
+    //   "PaymentInvoice",
+    //   { filename: "payment-invoice-report", format: "A5" },
+    //   result
+    // );
+
+    res.status(200).json({
+      success: true,
+      result,
+      message: 'Successfully updated the Payment ',
+    });
+  } catch (err) {
+    console.log(err);
+    // If err is thrown by Mongoose due to required validations
+    if (err.name == 'ValidationError') {
+      res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Required fields are not supplied',
+        error: err,
+      });
+    } else {
+      // Server Error
+      res.status(500).json({
+        success: false,
+        result: null,
+        message: 'Oops there is an Error',
+        error: err,
+      });
+    }
+  }
+}));
+router.route('/paymentInvoice/delete/:id').delete(catchErrors(async (req, res) => {
+  try {
+    // Find document by id and updates with the required fields
+    const previousPayment = await Model.findOne({
+      _id: req.params.id,
+      removed: false,
+    });
+
+    if (!previousPayment) {
+      return res.status(404).json({
+        success: false,
+        result: null,
+        message: 'No document found by this id: ' + req.params.id,
+      });
+    }
+
+    const { _id: paymentInvoiceId, amount: previousAmount } = previousPayment;
+    const { id: invoiceId, total, discount, credit: previousCredit } = previousPayment.invoice;
+
+    // Find the document by id and delete it
+    let updates = {
+      removed: true,
+    };
+    // Find the document by id and delete it
+    const result = await Model.findOneAndUpdate(
+        { _id: req.params.id, removed: false },
+        { $set: updates },
+        {
+          new: true, // return the new result instead of the old one
+        }
+    ).exec();
+    // If no results found, return document not found
+
+    let paymentStatus =
+        total - discount === previousCredit - previousAmount
+            ? 'paid'
+            : previousCredit - previousAmount > 0
+                ? 'partially'
+                : 'unpaid';
+
+    const updateInvoice = await Invoice.findOneAndUpdate(
+        { _id: invoiceId },
+        {
+          $pull: {
+            paymentInvoice: paymentInvoiceId,
+          },
+          $inc: { credit: -previousAmount },
+          $set: {
+            paymentStatus: paymentStatus,
+          },
+        },
+        {
+          new: true, // return the new result instead of the old one
+        }
+    ).exec();
+
+    return res.status(200).json({
+      success: true,
+      result,
+      message: 'Successfully Deleted the document by id: ' + req.params.id,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
+router.route('/paymentInvoice/search').get(catchErrors(async (req, res) => {
+  const Model = mongoose.model("PaymentInvoice");
+  let crudMethods = {};
+  // console.log(req.query.fields)
+  if (req.query.q === undefined || req.query.q.trim() === '') {
+    return res
+        .status(202)
+        .json({
+          success: false,
+          result: [],
+          message: 'No document found by this request',
+        })
+        .end();
+  }
+  const fieldsArray = req.query.fields
+      ? req.query.fields.split(',')
+      : ['name', 'surname', 'birthday'];
+
+  const fields = { $or: [] };
+
+  for (const field of fieldsArray) {
+    fields.$or.push({ [field]: { $regex: new RegExp(req.query.q, 'i') } });
+  }
+  // console.log(fields)
+  try {
+    let results = await Model.find(fields).where('removed', false).limit(10);
+
+    if (results.length >= 1) {
+      return res.status(200).json({
+        success: true,
+        result: results,
+        message: 'Successfully found all documents',
+      });
+    } else {
+      return res
+          .status(202)
+          .json({
+            success: false,
+            result: [],
+            message: 'No document found by this request',
+          })
+          .end();
+    }
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
+router.route('/paymentInvoice/list').get(catchErrors(async (req, res) => {
+
+  const Model = mongoose.model("PaymentInvoice");
+  let crudMethods = {};
+  const page = req.query.page || 1;
+  const limit = parseInt(req.query.items) || 10;
+  const skip = page * limit - limit;
+  try {
+    //  Query the database for a list of all results
+    const resultsPromise = Model.find({ removed: false })
+        .skip(skip)
+        .limit(limit)
+        .sort({ created: 'desc' })
+        .populate();
+    // Counting the total documents
+    const countPromise = Model.count({ removed: false });
+    // Resolving both promises
+    const [result, count] = await Promise.all([resultsPromise, countPromise]);
+    // Calculating total pages
+    const pages = Math.ceil(count / limit);
+
+    // Getting Pagination Object
+    const pagination = { page, pages, count };
+    if (count > 0) {
+      return res.status(200).json({
+        success: true,
+        result,
+        pagination,
+        message: 'Successfully found all documents',
+      });
+    } else {
+      return res.status(203).json({
+        success: false,
+        result: [],
+        pagination,
+        message: 'Collection is Empty',
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: [],
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
+router.route('/paymentInvoice/filter').get(catchErrors(async (req, res) => {
+  const Model = mongoose.model("PaymentMode");
+  let crudMethods = {};
+  try {
+    if (req.query.filter === undefined || req.query.equal === undefined) {
+      return res.status(403).json({
+        success: false,
+        result: null,
+        message: 'filter not provided correctly',
+      });
+    }
+    const result = await Model.find({ removed: false })
+        .where(req.query.filter)
+        .equals(req.query.equal);
+    return res.status(200).json({
+      success: true,
+      result,
+      message: 'Successfully found all documents where equal to : ' + req.params.equal,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
 router.route('/paymentInvoice/pdf/:id').get(catchErrors(paymentInvoiceController.generatePDF));
 
 // //____________________________________________ API for Global Setting _________________
@@ -196,8 +1005,133 @@ router
 router
   .route('/settingCommercial/delete/:id')
   .delete(catchErrors(settingCommercialController.delete));
-router.route('/settingCommercial/search').get(catchErrors(settingCommercialController.search));
-router.route('/settingCommercial/list').get(catchErrors(settingCommercialController.list));
-router.route('/settingCommercial/filter').get(catchErrors(settingCommercialController.filter));
+
+router.route('/settingCommercial/search').get(catchErrors(async (req, res) => {
+  const Model = mongoose.model("SettingCommercial");
+  let crudMethods = {};
+  // console.log(req.query.fields)
+  if (req.query.q === undefined || req.query.q.trim() === '') {
+    return res
+        .status(202)
+        .json({
+          success: false,
+          result: [],
+          message: 'No document found by this request',
+        })
+        .end();
+  }
+  const fieldsArray = req.query.fields
+      ? req.query.fields.split(',')
+      : ['name', 'surname', 'birthday'];
+
+  const fields = { $or: [] };
+
+  for (const field of fieldsArray) {
+    fields.$or.push({ [field]: { $regex: new RegExp(req.query.q, 'i') } });
+  }
+  // console.log(fields)
+  try {
+    let results = await Model.find(fields).where('removed', false).limit(10);
+
+    if (results.length >= 1) {
+      return res.status(200).json({
+        success: true,
+        result: results,
+        message: 'Successfully found all documents',
+      });
+    } else {
+      return res
+          .status(202)
+          .json({
+            success: false,
+            result: [],
+            message: 'No document found by this request',
+          })
+          .end();
+    }
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
+router.route('/settingCommercial/list').get(catchErrors(async (req, res) => {
+  const Model = mongoose.model("SettingCommercial");
+  let crudMethods = {};
+  const page = req.query.page || 1;
+  const limit = parseInt(req.query.items) || 10;
+  const skip = page * limit - limit;
+  try {
+    //  Query the database for a list of all results
+    const resultsPromise = Model.find({ removed: false })
+        .skip(skip)
+        .limit(limit)
+        .sort({ created: 'desc' })
+        .populate();
+    // Counting the total documents
+    const countPromise = Model.count({ removed: false });
+    // Resolving both promises
+    const [result, count] = await Promise.all([resultsPromise, countPromise]);
+    // Calculating total pages
+    const pages = Math.ceil(count / limit);
+
+    // Getting Pagination Object
+    const pagination = { page, pages, count };
+    if (count > 0) {
+      return res.status(200).json({
+        success: true,
+        result,
+        pagination,
+        message: 'Successfully found all documents',
+      });
+    } else {
+      return res.status(203).json({
+        success: false,
+        result: [],
+        pagination,
+        message: 'Collection is Empty',
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: [],
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
+
+router.route('/settingCommercial/filter').get(catchErrors(async (req, res) => {
+  const Model = mongoose.model("SettingCommercial");
+  let crudMethods = {};
+  try {
+    if (req.query.filter === undefined || req.query.equal === undefined) {
+      return res.status(403).json({
+        success: false,
+        result: null,
+        message: 'filter not provided correctly',
+      });
+    }
+    const result = await Model.find({ removed: false })
+        .where(req.query.filter)
+        .equals(req.query.equal);
+    return res.status(200).json({
+      success: true,
+      result,
+      message: 'Successfully found all documents where equal to : ' + req.params.equal,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      result: null,
+      message: 'Oops there is an Error',
+      error: err,
+    });
+  }
+}));
 
 module.exports = router;

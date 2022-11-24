@@ -4,6 +4,9 @@ const helmet = require('helmet');
 const path = require('path');
 const cors = require('cors');
 
+const swaggerUi = require("swagger-ui-express");
+const swaggerFile = require("./swagger-output1.json");
+
 const cookieParser = require('cookie-parser');
 require('dotenv').config({ path: '.variables.env' });
 
@@ -22,11 +25,19 @@ const app = express();
 
 // Takes the raw requests and turns them into usable properties on req.body
 
+app.all('/*', function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "X-Requested-With");
+    next();
+});
+
 app.use(helmet());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use("/swagger", swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
 // // Sessions allow us to Contact data on visitors from request to request
 // // This keeps admins logged in and allows us to send flash messages
