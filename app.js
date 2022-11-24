@@ -5,7 +5,7 @@ const path = require('path');
 const cors = require('cors');
 
 const swaggerUi = require("swagger-ui-express");
-const swaggerFile = require("./swagger-output1.json");
+const swaggerFile = require("./swagger-output.json");
 
 const cookieParser = require('cookie-parser');
 require('dotenv').config({ path: '.variables.env' });
