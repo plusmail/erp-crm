@@ -24,7 +24,7 @@ const paymentInvoiceController = require('@/controllers/erpControllers/paymentIn
 const settingCommercialController = require('@/controllers/erpControllers/settingCommercialController');
 const settingGlobalController = require('@/controllers/erpControllers/settingGlobalController');
 const mongoose = require("mongoose");
-
+const Invoice = mongoose.model('Invoice');
 // //_______________________________ Admin management_______________________________
 
 var adminPhotoStorage = multer.diskStorage({
@@ -415,7 +415,8 @@ router.route('/admin/status/:id').patch(catchErrors(async (req, res) => {
 
 // //____________________________ Role management_______________________________
 
-router.route('/role/create').post(catchErrors(async (Model, req, res) => {
+router.route('/role/create').post(catchErrors(async (req, res) => {
+  const Model = mongoose.model("Role");
   try {
     // Creating a new document in the collection
 
@@ -556,6 +557,8 @@ router.route('/expenseCategory/filter').get(catchErrors(expenseCategoryControlle
 // //_____________________________________________ API for client payments_________________
 
 router.route('/paymentInvoice/create').post(catchErrors(async (req, res) => {
+  const Model = mongoose.model("PaymentInvoice");
+  let crudMethods = {};
   try {
     // Creating a new document in the collection
     if (req.body.amount === 0) {
@@ -654,7 +657,9 @@ router.route('/paymentInvoice/create').post(catchErrors(async (req, res) => {
     }
   }
 }));
-router.route('/paymentInvoice/read/:id').get(catchErrors(async (Model, req, res) => {
+router.route('/paymentInvoice/read/:id').get(catchErrors(async (req, res) => {
+  const Model = mongoose.model("PaymentInvoice");
+  let crudMethods = {};
   try {
     // Find document by id
     const result = await Model.findOne({ _id: req.params.id, removed: false });
@@ -684,6 +689,8 @@ router.route('/paymentInvoice/read/:id').get(catchErrors(async (Model, req, res)
   }
 }));
 router.route('/paymentInvoice/update/:id').patch(catchErrors(async (req, res) => {
+  const Model = mongoose.model("PaymentInvoice");
+  let crudMethods = {};
   try {
     if (req.body.amount === 0) {
       return res.status(202).json({
@@ -787,6 +794,9 @@ router.route('/paymentInvoice/update/:id').patch(catchErrors(async (req, res) =>
   }
 }));
 router.route('/paymentInvoice/delete/:id').delete(catchErrors(async (req, res) => {
+  const Model = mongoose.model("PaymentInvoice");
+  let crudMethods = {};
+
   try {
     // Find document by id and updates with the required fields
     const previousPayment = await Model.findOne({
@@ -956,7 +966,7 @@ router.route('/paymentInvoice/list').get(catchErrors(async (req, res) => {
   }
 }));
 router.route('/paymentInvoice/filter').get(catchErrors(async (req, res) => {
-  const Model = mongoose.model("PaymentMode");
+  const Model = mongoose.model("paymentInvoice");
   let crudMethods = {};
   try {
     if (req.query.filter === undefined || req.query.equal === undefined) {
